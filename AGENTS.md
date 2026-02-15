@@ -9,7 +9,7 @@ Cursor / Copilot rules: none found (no `.cursor/rules/`, `.cursorrules`, or
 ## Quick Start
 
 - Build binary: `go build -o build-tool .`
-- Run from repo root: `./build-tool build <task...>`
+- Run from a project directory (requires `build-tool.jsonc`): `./build-tool build <task...>`
 - Run the bundled C example (from `example/`): `go run .. build main` then `go run .. build run`
 - Cache location: `.build-tool/` is created in the current working directory
 - Go version: `go.mod` declares `go 1.25.5` (use a compatible toolchain)

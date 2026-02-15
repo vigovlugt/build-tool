@@ -29,41 +29,6 @@ func NewTaskMap(tasks []Task) TaskMap {
 	return taskMap
 }
 
-// Example tasks, based on `example/Makefile`.
-var exampleCTasks = []Task{
-	{
-		ID:      TaskID("util.o"),
-		Inputs:  []Path{"util.h", "util.c"},
-		Outputs: []Path{"util.o"},
-		Command: "gcc -Wall -Wextra -c util.c",
-		Cache:   true,
-	},
-	{
-		ID:      TaskID("main.o"),
-		Inputs:  []Path{"util.h", "main.c"},
-		Outputs: []Path{"main.o"},
-		Command: "gcc -Wall -Wextra -c main.c",
-		Cache:   true,
-	},
-	{
-		ID:           TaskID("main"),
-		Inputs:       []Path{"util.o", "main.o"},
-		Outputs:      []Path{"main"},
-		Dependencies: []TaskID{TaskID("util.o"), TaskID("main.o")},
-		Command:      "gcc util.o main.o -o main",
-		Cache:        true,
-	},
-	{
-		ID:           TaskID("run"),
-		Dependencies: []TaskID{TaskID("main")},
-		Command:      "./main",
-	},
-	{
-		ID:      TaskID("clean"),
-		Command: "rm -f *.o main",
-	},
-}
-
 func main() {
 	if err := run(); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
@@ -72,8 +37,20 @@ func main() {
 }
 
 func run() error {
-	taskMap := NewTaskMap(exampleCTasks)
-	fmt.Printf("Loaded %d tasks\n", len(taskMap))
+	configPath := flag.String("config", "build-tool.jsonc", "path to build tool config (JSONC)")
+	flag.Parse()
+
+	args := flag.Args()
+	if len(args) == 0 {
+		fmt.Printf("Usage: %s [-config build-tool.jsonc] build <task1> <task2> ...\n", os.Args[0])
+		return fmt.Errorf("no tasks specified")
+	}
+
+	taskMap, err := LoadTaskMapFromConfig(*configPath)
+	if err != nil {
+		return fmt.Errorf("load tasks from %q: %w", *configPath, err)
+	}
+	fmt.Printf("Loaded %d tasks from %s\n", len(taskMap), *configPath)
 
 	executor := NewTaskExecutor(".build-tool/cache", filepath.Join(".build-tool", "cache", "stamps.json"))
 
@@ -86,14 +63,8 @@ func run() error {
 		}
 	}()
 
-	flag.Parse()
-	args := flag.Args()
-	if len(args) == 0 {
-		fmt.Println("Usage: go run main.go build <task1> <task2> ...")
-		return fmt.Errorf("no tasks specified")
-	}
-
-	if args[0] == "build" {
+	switch args[0] {
+	case "build":
 		taskIDs := make([]TaskID, len(args)-1)
 		for i, arg := range args[1:] {
 			taskIDs[i] = TaskID(arg)
@@ -102,6 +73,8 @@ func run() error {
 		if err := executor.ExecuteTasks(taskMap, taskIDs); err != nil {
 			return err
 		}
+	default:
+		return fmt.Errorf("unknown command %q", args[0])
 	}
 
 	return nil
