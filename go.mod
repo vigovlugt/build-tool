@@ -3,6 +3,7 @@ module github.com/vigovlugt/build-tool
 go 1.25.5
 
 require (
+	github.com/bmatcuk/doublestar/v4 v4.10.0
 	github.com/tailscale/hujson v0.0.0-20250605163823-992244df8c5a
 	golang.org/x/crypto v0.48.0
 	golang.org/x/sync v0.19.0

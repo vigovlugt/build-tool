@@ -96,12 +96,20 @@ func (e *TaskExecutor) doExecuteTask(taskMap TaskMap, task Task) error {
 
 	// Store in cache
 	if task.Cache {
-		if err := e.state.Store(taskKey, taskJSON, task.Outputs); err != nil {
+		var expandedOutputs []Path
+		if len(task.Outputs) > 0 {
+			expandedOutputs, err = ExpandFileSpecs(task.Outputs)
+			if err != nil {
+				return fmt.Errorf("expand outputs for task %s: %w", task.ID, err)
+			}
+		}
+
+		if err := e.state.Store(taskKey, taskJSON, expandedOutputs); err != nil {
 			return fmt.Errorf("cache store error for task %s: %w", task.ID, err)
 		}
-	}
 
-	e.state.UpdateOutputStamps(task.Outputs)
+		e.state.UpdateOutputStamps(expandedOutputs)
+	}
 
 	return nil
 }

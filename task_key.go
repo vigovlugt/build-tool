@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"golang.org/x/crypto/blake2b"
 )
@@ -22,6 +23,7 @@ type taskKeyPayload struct {
 	Version      int            `json:"v"`
 	Command      string         `json:"command"`
 	Dependencies []string       `json:"dependencies"`
+	Outputs      []string       `json:"outputs"`
 	Inputs       []taskKeyInput `json:"inputs"`
 }
 
@@ -43,7 +45,20 @@ func ComputeTaskKey(task Task, depTaskKeys []string, stamps *FileStampCache) (st
 	depKeys := append([]string(nil), depTaskKeys...)
 	sort.Strings(depKeys)
 
-	inputs := append([]Path(nil), task.Inputs...)
+	outputSpecs := make([]string, 0, len(task.Outputs))
+	for _, out := range task.Outputs {
+		s := filepath.ToSlash(string(out))
+		s = strings.TrimPrefix(s, "./")
+		outputSpecs = append(outputSpecs, s)
+	}
+	sort.Strings(outputSpecs)
+
+	expandedInputs, err := ExpandFileSpecs(task.Inputs)
+	if err != nil {
+		return "", nil, fmt.Errorf("expand inputs: %w", err)
+	}
+
+	inputs := append([]Path(nil), expandedInputs...)
 	sort.Slice(inputs, func(i, j int) bool { return string(inputs[i]) < string(inputs[j]) })
 
 	tInputs := make([]taskKeyInput, 0, len(inputs))
@@ -75,6 +90,7 @@ func ComputeTaskKey(task Task, depTaskKeys []string, stamps *FileStampCache) (st
 		Version:      1,
 		Command:      task.Command,
 		Dependencies: depKeys,
+		Outputs:      outputSpecs,
 		Inputs:       tInputs,
 	}
 
