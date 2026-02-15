@@ -1,0 +1,3 @@
+- Better console outputs per task
+- Tasks to build-tool.jsonc
+- Migrate to singleflight?
