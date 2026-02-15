@@ -104,7 +104,6 @@ func ComputeTaskKey(task Task, depTaskKeys []string, stamps *FileStampCache) (st
 }
 
 func hashFile(path string) (string, error) {
-	fmt.Printf("Hashing input file %s\n", path)
 	file, err := os.Open(path)
 	if err != nil {
 		return "", err

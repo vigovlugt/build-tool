@@ -18,26 +18,28 @@ func hasGlobMeta(s string) bool {
 }
 
 func parseSpec(raw string) (pat string, neg bool, err error) {
-	pat = filepath.ToSlash(raw)
-	pat = strings.TrimPrefix(pat, "./")
-	if pat == "" {
+	if raw == "" {
 		return "", false, fmt.Errorf("path must not be empty")
 	}
 
 	// Turbo-style negation: a leading '!' means the pattern is excluded.
 	// To match a literal leading '!', escape it as "\\!foo" in JSON.
-	if strings.HasPrefix(pat, "\\!") {
-		pat = strings.TrimPrefix(pat, "\\")
-		return pat, false, nil
-	}
-	if strings.HasPrefix(pat, "!") {
-		pat = strings.TrimPrefix(pat, "!")
-		if pat == "" {
+	if strings.HasPrefix(raw, "\\!") {
+		raw = strings.TrimPrefix(raw, "\\")
+	} else if strings.HasPrefix(raw, "!") {
+		neg = true
+		raw = strings.TrimPrefix(raw, "!")
+		if raw == "" {
 			return "", false, fmt.Errorf("negated pattern must not be empty")
 		}
-		return pat, true, nil
 	}
-	return pat, false, nil
+
+	pat = filepath.ToSlash(raw)
+	pat = strings.TrimPrefix(pat, "./")
+	if pat == "" {
+		return "", false, fmt.Errorf("path must not be empty")
+	}
+	return pat, neg, nil
 }
 
 // ExpandFileSpecs expands any glob patterns in specs (including doublestar **)

@@ -4,7 +4,7 @@
 int main()
 {
     // Use the utility functions
-    print_greeting("Build System User");
+    print_greeting("Build System User ");
 
     int x = 10;
     int y = 5;

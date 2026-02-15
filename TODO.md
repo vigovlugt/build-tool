@@ -3,8 +3,9 @@
 - Integration tests
 - Cross compilation support
 - Remote caching
+- Env vars https://turborepo.dev/docs/crafting-your-repository/using-environment-variables#adding-environment-variables-to-task-hashes
 
 P4:
 
 - Remote execution support
-- Concurrency, cache dir flag
+- Concurrency flag, cache dir flag

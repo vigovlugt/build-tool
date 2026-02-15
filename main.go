@@ -50,16 +50,24 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("load tasks from %q: %w", *configPath, err)
 	}
-	fmt.Printf("Loaded %d tasks from %s\n", len(taskMap), *configPath)
 
-	executor := NewTaskExecutor(".build-tool/cache", filepath.Join(".build-tool", "cache", "stamps.json"))
+	maxTaskIDLen := 0
+	for id := range taskMap {
+		if n := len(string(id)); n > maxTaskIDLen {
+			maxTaskIDLen = n
+		}
+	}
+	log := NewLogger(os.Stdout, os.Stderr, LoggerOptions{ColorEnabled: DetectColorEnabled(), PrefixWidth: maxTaskIDLen})
+	log.Printf("Loaded %d tasks from %s\n", len(taskMap), *configPath)
+
+	executor := NewTaskExecutor(".build-tool/cache", filepath.Join(".build-tool", "cache", "stamps.json"), log)
 
 	if err := executor.Load(); err != nil {
 		return fmt.Errorf("load stamp cache: %w", err)
 	}
 	defer func() {
 		if err := executor.Save(); err != nil {
-			fmt.Fprintf(os.Stderr, "error saving stamp cache: %v\n", err)
+			log.Errorf("error saving stamp cache: %v\n", err)
 		}
 	}()
 

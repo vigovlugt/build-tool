@@ -1,8 +1,12 @@
 package main
 
 import (
+	"bufio"
+	"errors"
 	"fmt"
+	"io"
 	"os/exec"
+	"strings"
 
 	"golang.org/x/sync/errgroup"
 )
@@ -11,13 +15,15 @@ type TaskExecutor struct {
 	state *BuildState
 	keys  *TaskKeyStore
 	memo  *TaskMemo
+	log   *Logger
 }
 
-func NewTaskExecutor(cacheRoot string, stampCachePath string) *TaskExecutor {
+func NewTaskExecutor(cacheRoot string, stampCachePath string, log *Logger) *TaskExecutor {
 	return &TaskExecutor{
 		state: NewBuildState(cacheRoot, stampCachePath),
 		keys:  NewTaskKeyStore(),
 		memo:  NewTaskMemo(),
+		log:   log,
 	}
 }
 
@@ -80,19 +86,39 @@ func (e *TaskExecutor) doExecuteTask(taskMap TaskMap, task Task) error {
 		}
 
 		if hit {
-			fmt.Printf("CACHE HIT %s\n", task.ID)
+			e.log.Taskf(task.ID, "CACHE HIT")
 			return nil
 		}
 	}
 
 	// Execute task
-	fmt.Printf("Executing task %s: %s\n", task.ID, task.Command)
+	e.log.Taskf(task.ID, "$ %s", task.Command)
+
 	cmd := exec.Command("sh", "-c", task.Command)
-	output, err := cmd.CombinedOutput()
+	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return fmt.Errorf("execute task %s: %w", task.ID, err)
+		return fmt.Errorf("stdout pipe for task %s: %w", task.ID, err)
 	}
-	fmt.Printf("Output of task %s:\n%s\n", task.ID, string(output))
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return fmt.Errorf("stderr pipe for task %s: %w", task.ID, err)
+	}
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("start task %s: %w", task.ID, err)
+	}
+
+	g := new(errgroup.Group)
+	g.Go(func() error { return e.copyTaskOutput(task.ID, stdout) })
+	g.Go(func() error { return e.copyTaskOutput(task.ID, stderr) })
+
+	waitErr := cmd.Wait()
+	copyErr := g.Wait()
+	if copyErr != nil {
+		return fmt.Errorf("read output for task %s: %w", task.ID, copyErr)
+	}
+	if waitErr != nil {
+		return fmt.Errorf("execute task %s: %w", task.ID, waitErr)
+	}
 
 	// Store in cache
 	if task.Cache {
@@ -112,4 +138,22 @@ func (e *TaskExecutor) doExecuteTask(taskMap TaskMap, task Task) error {
 	}
 
 	return nil
+}
+
+func (e *TaskExecutor) copyTaskOutput(taskID TaskID, r io.Reader) error {
+	br := bufio.NewReader(r)
+	for {
+		line, err := br.ReadString('\n')
+		if line != "" {
+			line = strings.TrimSuffix(line, "\n")
+			line = strings.TrimSuffix(line, "\r")
+			e.log.TaskLine(taskID, line)
+		}
+		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+			return err
+		}
+	}
 }
