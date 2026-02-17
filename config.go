@@ -17,11 +17,10 @@ type buildConfig struct {
 }
 
 type taskConfig struct {
-	Inputs       []Path   `json:"inputs,omitempty"`
-	Outputs      []Path   `json:"outputs,omitempty"`
-	Dependencies []TaskID `json:"dependencies,omitempty"`
-	Command      string   `json:"command"`
-	Cache        *bool    `json:"cache,omitempty"`
+	Inputs  []Path `json:"inputs,omitempty"`
+	Outputs []Path `json:"outputs,omitempty"`
+	Command string `json:"command"`
+	Cache   *bool  `json:"cache,omitempty"`
 }
 
 func LoadTaskMapFromConfig(configPath string) (TaskMap, error) {
@@ -69,11 +68,33 @@ func LoadTaskMapFromConfig(configPath string) (TaskMap, error) {
 			cache = *tc.Cache
 		}
 
+		// Dependencies are declared inline in inputs by prefixing them with ':'
+		// e.g. ":compile".
+		inputs := make([]Path, 0, len(tc.Inputs))
+		deps := make([]TaskID, 0)
+		for _, in := range tc.Inputs {
+			raw := string(in)
+			if strings.HasPrefix(raw, "\\:") {
+				// Escaped leading ':'; treat as a literal file path beginning with ':'.
+				inputs = append(inputs, Path(strings.TrimPrefix(raw, "\\")))
+				continue
+			}
+			if strings.HasPrefix(raw, ":") {
+				dep := strings.TrimSpace(strings.TrimPrefix(raw, ":"))
+				if dep == "" {
+					return nil, fmt.Errorf("task %s: dependency input must not be empty", id)
+				}
+				deps = append(deps, TaskID(dep))
+				continue
+			}
+			inputs = append(inputs, in)
+		}
+
 		taskMap[id] = Task{
 			ID:           id,
-			Inputs:       tc.Inputs,
+			Inputs:       inputs,
 			Outputs:      tc.Outputs,
-			Dependencies: tc.Dependencies,
+			Dependencies: deps,
 			Command:      cmd,
 			Cache:        cache,
 		}

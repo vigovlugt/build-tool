@@ -6,14 +6,12 @@
             "outputs": ["bun"],
         },
         "install": {
-            "inputs": ["package.json", "bun.lock"],
+            "inputs": [":bun", "package.json", "bun.lock"],
             "outputs": ["node_modules/**/*"],
-            "dependencies": ["bun"],
             "command": "./bun install --frozen-lockfile",
         },
         "run": {
-            "inputs": ["index.js"],
-            "dependencies": ["bun", "install"],
+            "inputs": [":bun", ":install", "index.js"],
             "command": "./bun index.js",
             "cache": false,
         },
