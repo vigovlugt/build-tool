@@ -217,7 +217,7 @@ func (e *TaskExecutor) executeTaskRun(taskMap TaskMap, task Task, taskKey string
 		for _, rel := range paths {
 			src := staged[rel]
 			dst := filepath.Join(workDir, filepath.FromSlash(rel))
-			if err := copyFile(src, dst); err != nil {
+			if err := stageFileBySymlink(src, dst); err != nil {
 				cleanup()
 				return fmt.Errorf("stage %q: %w", rel, err)
 			}
@@ -350,6 +350,27 @@ func sanitizeSandboxName(s string) string {
 		return "task"
 	}
 	return out
+}
+
+func stageFileBySymlink(src, dst string) error {
+	srcAbs, err := filepath.Abs(src)
+	if err != nil {
+		return err
+	}
+
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		return err
+	}
+
+	// Best-effort replace.
+	_ = os.Remove(dst)
+
+	if err := os.Symlink(srcAbs, dst); err == nil {
+		return nil
+	}
+
+	// Fallback for platforms/configurations where symlinks are not available.
+	return copyFile(srcAbs, dst)
 }
 
 func (e *TaskExecutor) copyTaskOutput(taskID TaskID, r io.Reader) error {
