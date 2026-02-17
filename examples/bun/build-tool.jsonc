@@ -1,0 +1,21 @@
+{
+    // JSONC
+    "tasks": {
+        "bun": {
+            "command": "TEMP_DIR=$(mktemp -d) && curl -L https://github.com/oven-sh/bun/releases/download/bun-v1.3.9/bun-linux-x64.zip -o $TEMP_DIR/bun.zip && unzip -q $TEMP_DIR/bun.zip -d $TEMP_DIR && cp $TEMP_DIR/bun-linux-x64/bun ./bun && rm -rf $TEMP_DIR && echo \"✅ Bun installed to $(pwd)/bun\"",
+            "outputs": ["bun"],
+        },
+        "install": {
+            "inputs": ["package.json", "bun.lock"],
+            "outputs": ["node_modules/**/*"],
+            "dependencies": ["bun"],
+            "command": "./bun install --frozen-lockfile",
+        },
+        "run": {
+            "inputs": ["index.js"],
+            "dependencies": ["bun", "install"],
+            "command": "./bun index.js",
+            "cache": false,
+        },
+    },
+}

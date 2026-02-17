@@ -1,0 +1,10 @@
+{
+  "name": "bun-cowsay-example",
+  "private": true,
+  "dependencies": {
+    "cowsay": "^1.6.0"
+  },
+  "scripts": {
+    "cowsay": "bun index.js"
+  }
+}

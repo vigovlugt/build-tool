@@ -1,0 +1,3 @@
+.build-tool/
+node_modules/
+bun.lock

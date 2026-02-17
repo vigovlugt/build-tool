@@ -1,0 +1,32 @@
+{
+    // JSONC
+    "tasks": {
+        "util.o": {
+            "inputs": ["util.h", "util.c"],
+            "outputs": ["util.o"],
+            "command": "gcc -Wall -Wextra -c util.c",
+            "cache": true,
+        },
+        "main.o": {
+            "inputs": ["util.h", "main.c"],
+            "outputs": ["main.o"],
+            "command": "gcc -Wall -Wextra -c main.c",
+            "cache": true,
+        },
+        "main": {
+            "outputs": ["main"],
+            "dependencies": ["util.o", "main.o"],
+            "command": "gcc util.o main.o -o main",
+            "cache": true,
+        },
+        "run": {
+            "dependencies": ["main"],
+            "command": "./main",
+            "cache": false,
+        },
+        "clean": {
+            "command": "rm -f *.o main",
+            "cache": false,
+        },
+    },
+}

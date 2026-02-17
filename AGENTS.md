@@ -10,7 +10,7 @@ Cursor / Copilot rules: none found (no `.cursor/rules/`, `.cursorrules`, or
 
 - Build binary: `go build -o build-tool .`
 - Run from a project directory (requires `build-tool.jsonc`): `./build-tool build <task...>`
-- Run the bundled C example (from `example/`): `go run .. build main` then `go run .. build run`
+- Run the bundled C example (from `examples/c/`): `go run ../.. build main` then `go run ../.. build run`
 - Cache location: `.build-tool/` is created in the current working directory
 - Go version: `go.mod` declares `go 1.25.5` (use a compatible toolchain)
 - If your Go version differs, prefer a toolchain-aware setup (e.g. `GOTOOLCHAIN=auto`) over editing `go.mod`
@@ -57,10 +57,10 @@ There are currently no `*_test.go` files. When tests are added:
 - Verbose: `go test ./... -run '^TestName$' -v`
 - List tests (find exact names): `go test ./... -list .`
 
-### Example Project (`example/`)
+### Example Project (`examples/c/`)
 
-- Compare with make: `make -C example clean && make -C example run`
-- Use this tool (run from inside `example/`): `go run .. build run`
+- Compare with make: `make -C examples/c clean && make -C examples/c run`
+- Use this tool (run from inside `examples/c/`): `go run ../.. build run`
 
 ## Code Style Guidelines (Go)
 
@@ -124,7 +124,7 @@ then match existing patterns in this repo (mostly `package main`).
 - Cache directories live under `.build-tool/` in the current working directory.
 - Stamp cache path: `.build-tool/cache/stamps.json`.
 - Task cache layout: `.build-tool/cache/tasks/<taskKey>/...`.
-- The bundled C example expects to be run from `example/` (tasks use relative paths).
+- The bundled C example expects to be run from `examples/c/` (tasks use relative paths).
 
 ## Gotchas / Debugging Notes
 
