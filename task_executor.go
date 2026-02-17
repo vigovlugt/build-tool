@@ -59,6 +59,13 @@ func (e *TaskExecutor) CleanupSandbox() error {
 }
 
 func (e *TaskExecutor) ExecuteTasks(taskMap TaskMap, taskIDs []TaskID) error {
+	if err := e.executeTasks(taskMap, taskIDs, true); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (e *TaskExecutor) executeTasks(taskMap TaskMap, taskIDs []TaskID, topLevel bool) error {
 	g := new(errgroup.Group)
 
 	for _, id := range taskIDs {
@@ -73,7 +80,37 @@ func (e *TaskExecutor) ExecuteTasks(taskMap TaskMap, taskIDs []TaskID) error {
 		})
 	}
 
-	return g.Wait()
+	if err := g.Wait(); err != nil {
+		return err
+	}
+
+	if topLevel && e.sandbox {
+		// In sandbox mode we avoid writing intermediate outputs into the workspace.
+		// Export only the explicitly requested (top-level) tasks.
+		for _, id := range taskIDs {
+			task, ok := taskMap[id]
+			if !ok {
+				continue
+			}
+			if !task.Cache {
+				continue
+			}
+			key, ok := e.keys.Get(id)
+			if !ok {
+				continue
+			}
+			if _, err := e.state.Restore(key, task.Outputs); err != nil {
+				return fmt.Errorf("export outputs for task %s: %w", id, err)
+			}
+
+			outs, err := e.state.localCache.ReadManifestOutputs(key)
+			if err == nil {
+				e.state.UpdateOutputStamps(outs)
+			}
+		}
+	}
+
+	return nil
 }
 
 func (e *TaskExecutor) executeTask(taskMap TaskMap, task Task) error {
@@ -85,7 +122,7 @@ func (e *TaskExecutor) executeTask(taskMap TaskMap, task Task) error {
 func (e *TaskExecutor) doExecuteTask(taskMap TaskMap, task Task) error {
 	// Execute dependencies in parallel.
 	if len(task.Dependencies) > 0 {
-		if err := e.ExecuteTasks(taskMap, task.Dependencies); err != nil {
+		if err := e.executeTasks(taskMap, task.Dependencies, false); err != nil {
 			return err
 		}
 	}
@@ -103,14 +140,21 @@ func (e *TaskExecutor) doExecuteTask(taskMap TaskMap, task Task) error {
 
 	// Lookup from cache
 	if task.Cache {
-		hit, err := e.state.Restore(taskKey, task.Outputs)
-		if err != nil {
-			return fmt.Errorf("cache restore: %w", err)
-		}
+		if e.sandbox {
+			if e.state.localCache.Has(taskKey) {
+				e.log.Taskf(task.ID, "CACHE HIT")
+				return nil
+			}
+		} else {
+			hit, err := e.state.Restore(taskKey, task.Outputs)
+			if err != nil {
+				return fmt.Errorf("cache restore: %w", err)
+			}
 
-		if hit {
-			e.log.Taskf(task.ID, "CACHE HIT")
-			return nil
+			if hit {
+				e.log.Taskf(task.ID, "CACHE HIT")
+				return nil
+			}
 		}
 	}
 
@@ -290,9 +334,6 @@ func (e *TaskExecutor) executeTaskRun(taskMap TaskMap, task Task, taskKey string
 		if err := e.state.StoreFromDir(taskKey, taskJSON, expandedOutputs, execDir); err != nil {
 			return fmt.Errorf("cache store error for task %s: %w", task.ID, err)
 		}
-		if _, err := e.state.Restore(taskKey, task.Outputs); err != nil {
-			return fmt.Errorf("cache restore after sandbox for task %s: %w", task.ID, err)
-		}
 	} else {
 		for _, out := range expandedOutputs {
 			src := filepath.Join(execDir, filepath.FromSlash(string(out)))
@@ -303,7 +344,11 @@ func (e *TaskExecutor) executeTaskRun(taskMap TaskMap, task Task, taskKey string
 		}
 	}
 
-	e.state.UpdateOutputStamps(expandedOutputs)
+	// Note: in sandbox mode, cacheable tasks are exported to the workspace only at
+	// the top level. So we only update output stamps here for non-cache tasks.
+	if !task.Cache {
+		e.state.UpdateOutputStamps(expandedOutputs)
+	}
 	return nil
 }
 

@@ -26,6 +26,11 @@ func (c *LocalCache) manifestPath(taskKey string) string {
 	return filepath.Join(c.taskDir(taskKey), "manifest.json")
 }
 
+func (c *LocalCache) Has(taskKey string) bool {
+	_, err := os.Stat(c.manifestPath(taskKey))
+	return err == nil
+}
+
 func (c *LocalCache) ReadManifestOutputs(taskKey string) ([]Path, error) {
 	manifestPath := c.manifestPath(taskKey)
 	data, err := os.ReadFile(manifestPath)
