@@ -150,3 +150,109 @@ func ExpandFileSpecs(specs []Path) ([]Path, error) {
 	}
 	return out, nil
 }
+
+// ExpandFileSpecsInDir expands specs relative to baseDir.
+//
+// It mirrors ExpandFileSpecs, but evaluates globs and non-glob paths against
+// baseDir instead of the current working directory.
+func ExpandFileSpecsInDir(baseDir string, specs []Path) ([]Path, error) {
+	fsys := os.DirFS(baseDir)
+
+	seen := make(map[string]struct{})
+
+	for _, spec := range specs {
+		raw := string(spec)
+		pat, neg, err := parseSpec(raw)
+		if err != nil {
+			return nil, err
+		}
+
+		if hasGlobMeta(pat) {
+			if filepath.IsAbs(filepath.FromSlash(pat)) {
+				return nil, fmt.Errorf("glob pattern must be relative: %q", raw)
+			}
+
+			matches, err := doublestar.Glob(fsys, pat)
+			if err != nil {
+				return nil, fmt.Errorf("glob %q: %w", raw, err)
+			}
+
+			sort.Strings(matches)
+			added := 0
+			for _, m := range matches {
+				m = filepath.ToSlash(m)
+				m = strings.TrimPrefix(m, "./")
+				if m == "" {
+					continue
+				}
+
+				if neg {
+					delete(seen, m)
+					continue
+				}
+
+				if _, ok := seen[m]; ok {
+					continue
+				}
+				info, err := fs.Stat(fsys, m)
+				if err != nil {
+					return nil, fmt.Errorf("stat %q (from %q): %w", m, raw, err)
+				}
+				if info.IsDir() {
+					continue
+				}
+				if !info.Mode().IsRegular() {
+					return nil, fmt.Errorf("glob %q matched non-regular path %q", raw, m)
+				}
+
+				seen[m] = struct{}{}
+				added++
+			}
+			if !neg && added == 0 {
+				return nil, fmt.Errorf("glob %q matched no files", raw)
+			}
+			continue
+		}
+
+		p := pat
+		absPath := filepath.Join(baseDir, filepath.FromSlash(p))
+		if neg {
+			fi, err := os.Stat(absPath)
+			if err == nil && fi.IsDir() {
+				prefix := strings.TrimSuffix(p, "/") + "/"
+				for k := range seen {
+					if strings.HasPrefix(k, prefix) {
+						delete(seen, k)
+					}
+				}
+				continue
+			}
+			delete(seen, p)
+			continue
+		}
+
+		info, err := os.Stat(absPath)
+		if err != nil {
+			return nil, fmt.Errorf("stat %q: %w", raw, err)
+		}
+		if info.IsDir() {
+			return nil, fmt.Errorf("path %q is a directory; use a glob like %q", raw, filepath.ToSlash(filepath.Join(p, "**", "*")))
+		}
+		if !info.Mode().IsRegular() {
+			return nil, fmt.Errorf("path %q is not a regular file", raw)
+		}
+
+		seen[p] = struct{}{}
+	}
+
+	keys := make([]string, 0, len(seen))
+	for k := range seen {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	out := make([]Path, len(keys))
+	for i, p := range keys {
+		out[i] = Path(p)
+	}
+	return out, nil
+}

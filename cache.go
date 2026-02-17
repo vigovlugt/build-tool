@@ -22,10 +22,32 @@ func (c *LocalCache) taskDir(taskKey string) string {
 	return filepath.Join(c.Root, "tasks", taskKey)
 }
 
+func (c *LocalCache) manifestPath(taskKey string) string {
+	return filepath.Join(c.taskDir(taskKey), "manifest.json")
+}
+
+func (c *LocalCache) ReadManifestOutputs(taskKey string) ([]Path, error) {
+	manifestPath := c.manifestPath(taskKey)
+	data, err := os.ReadFile(manifestPath)
+	if err != nil {
+		return nil, err
+	}
+
+	var manifest struct {
+		TaskKey string          `json:"task_key"`
+		Outputs []Path          `json:"outputs"`
+		Task    json.RawMessage `json:"task"`
+	}
+	if err := json.Unmarshal(data, &manifest); err != nil {
+		return nil, err
+	}
+	return manifest.Outputs, nil
+}
+
 func (c *LocalCache) Restore(taskKey string, outputs []Path) (bool, error) {
 	tDir := c.taskDir(taskKey)
 
-	manifestPath := filepath.Join(tDir, "manifest.json")
+	manifestPath := c.manifestPath(taskKey)
 	data, err := os.ReadFile(manifestPath)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -81,6 +103,10 @@ func (c *LocalCache) Restore(taskKey string, outputs []Path) (bool, error) {
 }
 
 func (c *LocalCache) Store(taskKey string, taskJSON []byte, outputs []Path) error {
+	return c.StoreFromDir(taskKey, taskJSON, outputs, ".")
+}
+
+func (c *LocalCache) StoreFromDir(taskKey string, taskJSON []byte, outputs []Path, baseDir string) error {
 	tDir := c.taskDir(taskKey)
 	if err := os.MkdirAll(filepath.Dir(tDir), 0o755); err != nil {
 		return err
@@ -96,7 +122,7 @@ func (c *LocalCache) Store(taskKey string, taskJSON []byte, outputs []Path) erro
 	sort.Slice(sortedOutputs, func(i, j int) bool { return string(sortedOutputs[i]) < string(sortedOutputs[j]) })
 
 	for _, out := range sortedOutputs {
-		src := filepath.FromSlash(string(out))
+		src := filepath.Join(baseDir, filepath.FromSlash(string(out)))
 		if _, err := os.Stat(src); err != nil {
 			return fmt.Errorf("output %q missing: %w", out, err)
 		}

@@ -36,6 +36,10 @@ func (s *BuildState) Store(taskKey string, taskJSON []byte, outputs []Path) erro
 	return s.localCache.Store(taskKey, taskJSON, outputs)
 }
 
+func (s *BuildState) StoreFromDir(taskKey string, taskJSON []byte, outputs []Path, baseDir string) error {
+	return s.localCache.StoreFromDir(taskKey, taskJSON, outputs, baseDir)
+}
+
 // UpdateOutputStamps hashes output files and records their stamps so that
 // downstream tasks (which may consume these outputs as inputs) get stamp cache
 // hits instead of re-hashing.

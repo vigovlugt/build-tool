@@ -38,12 +38,22 @@ func main() {
 
 func run() error {
 	configPath := flag.String("config", "build-tool.jsonc", "path to build tool config (JSONC)")
+	sandbox := flag.Bool("sandbox", false, "run tasks in a sandbox directory under .build-tool")
 	flag.Parse()
 
 	args := flag.Args()
 	if len(args) == 0 {
 		fmt.Printf("Usage: %s [-config build-tool.jsonc] build <task1> <task2> ...\n", os.Args[0])
+		fmt.Printf("       %s clean\n", os.Args[0])
 		return fmt.Errorf("no tasks specified")
+	}
+
+	if args[0] == "clean" {
+		if err := os.RemoveAll(".build-tool"); err != nil {
+			return fmt.Errorf("remove .build-tool: %w", err)
+		}
+		fmt.Printf("Removed .build-tool\n")
+		return nil
 	}
 
 	taskMap, err := LoadTaskMapFromConfig(*configPath)
@@ -60,7 +70,12 @@ func run() error {
 	log := NewLogger(os.Stdout, os.Stderr, LoggerOptions{ColorEnabled: DetectColorEnabled(), PrefixWidth: maxTaskIDLen})
 	log.Printf("Loaded %d tasks from %s\n", len(taskMap), *configPath)
 
-	executor := NewTaskExecutor(".build-tool/cache", filepath.Join(".build-tool", "cache", "stamps.json"), log)
+	executor := NewTaskExecutor(".build-tool/cache", filepath.Join(".build-tool", "cache", "stamps.json"), log, *sandbox)
+	defer func() {
+		if err := executor.CleanupSandbox(); err != nil {
+			log.Errorf("error cleaning sandbox: %v\n", err)
+		}
+	}()
 
 	if err := executor.Load(); err != nil {
 		return fmt.Errorf("load stamp cache: %w", err)
